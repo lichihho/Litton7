@@ -1,6 +1,7 @@
 ## 安裝
 ### 安裝 PyTorch
 請至 PyTorch 官方網站的 [Get Started](https://pytorch.org/get-started/locally/) 選取需要的版本，並依照給出的命令列安裝。  
+建議安裝指令:
 ```console
 $ conda install pytorch torchvision torchaudio cudatoolkit=11.3 -c pytorch
 ```
