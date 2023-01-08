@@ -20,16 +20,14 @@ import csv
 plt.ion()
 
 #target path 
-folderpath = r"D:\\!整理訓練程式\\testing\\testing2\\"
+folderpath = r"D:\\iamge\\testing\\testing2\\"
 
 #output path
-csvpath = r"D:\\!整理訓練程式\\testing\\testing_csv\\"
+csvpath = r"D:\\iamge\\testing\\testing_csv\\"
 
 #model path
-model_path = r"D:\!整理訓練程式\不同預測程式\Litton-7type-visual-landscape-model.pth"
+model_path = r"D:\model\Litton-7type-visual-landscape-model.pth"
 labels = ['0.Panoramic-landscape', '1.Feature-landscape', '2.Detail-landscape', '3.Enclosed-landscape', '4.Focal-landscape', '5.Ephemeral-landscape', '6.Canopied-landscape']
-
-#以下別改動-------------------------------------------------------------------------------------------------------------------
 
 
 labelsnum=[]
@@ -109,6 +107,7 @@ def main(imgpath):
         df.to_csv(error_csv_path, encoding = "utf_8_sig", index = False)  
         print("error: " + error_csv_path + " has been created !")
         error = []
+
 folderpath_list = os.listdir(folderpath)
 folderpath_list.sort()
 for f in folderpath_list:
