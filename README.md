@@ -15,6 +15,6 @@ $ pip install pillow
 $ pip install matplotlib
 ```
 
-### 程式使用方法功能
+### 程式使用
 設定
 ### 程式功能
