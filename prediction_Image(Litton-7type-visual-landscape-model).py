@@ -17,16 +17,34 @@ import pandas as pd
 import torch.nn.functional as F
 import shutil
 import csv
+import argparse
+import sys
 plt.ion()
 
-#target path 
-folderpath = r"D:\\iamge\\testing\\testing2\\"
 
-#output path
-csvpath = r"D:\\iamge\\testing\\testing_csv\\"
+class PrintHelpBeforeLeaveArgumentParser(argparse.ArgumentParser):
+    "An argument parser with helpful error message."
+    def exit(self, status=0, message=None):
+        if message:
+            self._print_message(message, sys.stderr)
+            print("-" * 75)
+        if status:
+            self.print_help()
+        sys.exit(status)
 
-#model path
-model_path = r"D:\model\Litton-7type-visual-landscape-model.pth"
+    def error(self, message):
+        args = {'prog': self.prog, 'message': message}
+        self.exit(2, ('%(prog)s: error: %(message)s\n') % args)
+
+
+parser =  PrintHelpBeforeLeaveArgumentParser(description="Command line app for processing a directory with a given model and outputting to a CSV")
+parser.add_argument("imgdir", help="Path to the directory to be processed")
+parser.add_argument("-m", "--model", required=True, help="Path to the model file")
+parser.add_argument("-o", "--output", required=True, help="Folder for the output CSV")
+
+args = parser.parse_args()
+
+
 labels = ['0.Panoramic-landscape', '1.Feature-landscape', '2.Detail-landscape', '3.Enclosed-landscape', '4.Focal-landscape', '5.Ephemeral-landscape', '6.Canopied-landscape']
 
 
@@ -35,7 +53,7 @@ for i in range(len(labels)):
     labelsnum.append(str(i))
 img_type = [".jpg",".bmp",".png"]
 
-model = torch.load(model_path)
+model = torch.load(args.model)
 model.eval()
 model.cuda()
 normalize = transforms.Normalize(
@@ -57,21 +75,21 @@ def main(imgpath):
     bset_out = number = checknumber = i = 0
     check = num = point = 0
 
-    print("total " + str(len(os.listdir(imgpath))) + " images" )
+    print("total " + str(len(os.listdir(imgpath))) + " images")
     imagepath_list = os.listdir(imgpath)
     imagepath_list.sort()
-    for infile in imagepath_list :
+    for infile in imagepath_list:
         try:
             for i in range(len(labels)):
                 if infile == labels[i]:
                     continue
-                fpath = imgpath + labels[i]
+                fpath = os.path.join(imgpath, labels[i])
                 if not os.path.isdir(fpath):
                     os.mkdir(fpath) 
             for check in img_type:
                 if infile.find(check) == -1:
                     continue
-            name = imgpath + infile
+            name = os.path.join(imgpath, infile)
             img_pil = Image.open(name).convert('RGB')
             img_tensor = preprocess(img_pil).cuda()
             img_tensor = img_tensor.unsqueeze_(0)
@@ -96,7 +114,7 @@ def main(imgpath):
             imgname.append(infile)
             imglabel.append(label)
             imglabelnum.append(labelnum)
-            newpath = imgpath + label + "\\" + infile
+            newpath = os.path.join(imgpath, label, infile)
             shutil.move(name, newpath)      
     dict = {'imgname':imgname, 'predict_label':imglabel, 'predict_label_num':imglabelnum,'probability':rate}
     df = pd.DataFrame(dict) 
@@ -105,17 +123,17 @@ def main(imgpath):
         dict = {'error_imgname':error}
         df = pd.DataFrame(dict) 
         df.to_csv(error_csv_path, encoding = "utf_8_sig", index = False)  
-        print("error: " + error_csv_path + " has been created !")
+        print("error: " + error_csv_path + " has been created!")
         error = []
 
-folderpath_list = os.listdir(folderpath)
+folderpath_list = os.listdir(args.imgdir)
 folderpath_list.sort()
 for f in folderpath_list:
     start = time.time()
-    imgpath = folderpath + f + '\\'
+    imgpath = os.path.join(args.imgdir, f)
     
-    csv_path = csvpath + f + "-Litton-7type-visual-landscape-predict_result.csv"
-    error_csv_path = csvpath + f + "-predict_error.csv"
+    csv_path = os.path.join(args.output, f + "-Litton-7type-visual-landscape-predict_result.csv")
+    error_csv_path = os.path.join(args.output, f + "-predict_error.csv")
     print(csv_path)
     main(imgpath)
     end = time.time()
