@@ -1,4 +1,3 @@
-#library
 from __future__ import print_function, division
 from torch.autograd import Variable
 import torch
@@ -37,7 +36,44 @@ class PrintHelpBeforeLeaveArgumentParser(argparse.ArgumentParser):
         self.exit(2, ('%(prog)s: error: %(message)s\n') % args)
 
 
-parser =  PrintHelpBeforeLeaveArgumentParser(description="Command line app for processing a directory with a given model and outputting to a CSV")
+desc = """\
+Categorize images and save the results to the specified output folder.
+Then, transfer the image files into new sub-folders named after
+Litton's 7 class categories.
+"""
+epilog = """\
+The program is a batch process.
+Given a folder with image files in its sub-folders:
+
+root-folder
+├── sub-folder1
+│   ├── 00001.jpg
+│   ├── 00002.jpg
+│   ├── 00003.jpg
+│   ...
+├── sub-folder2
+│   ├── 00004.jpg
+│   ├── 00005.jpg
+│   ├── 00006.jpg
+│   ...
+└── sub-folder3
+    ├── 00007.jpg
+    ├── 00008.jpg
+    ├── 00009.jpg
+    ...
+
+Set the path of the "root-folder" for this program, and it will process 
+the first level of sub-folders sequentially.
+
+Please ensure that the "root-folder" contains only sub-folders.
+"""
+
+
+parser =  PrintHelpBeforeLeaveArgumentParser(
+    formatter_class=argparse.RawDescriptionHelpFormatter,
+    description=desc,
+    epilog=epilog,
+)
 parser.add_argument("imgdir", help="Path to the directory to be processed")
 parser.add_argument("-m", "--model", required=True, help="Path to the model file")
 parser.add_argument("-o", "--output", required=True, help="Folder for the output CSV")
