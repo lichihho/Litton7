@@ -3,10 +3,13 @@ import os
 import shutil
 import sys
 import time
+import platform
+import traceback
 
 import pandas as pd
 import torch
 import torch.nn.functional as F
+import gdown
 
 from PIL import Image
 from torch.autograd import Variable
@@ -68,10 +71,72 @@ parser = PrintHelpBeforeLeaveArgumentParser(
     epilog=epilog,
 )
 parser.add_argument("rootfolder", help="Path to the directory to be processed")
-parser.add_argument("-m", "--model", required=True, help="Path to the model file")
-parser.add_argument("-o", "--output", required=True, help="Folder for the output CSV")
+parser.add_argument("-m", "--model", help="Specify the model explicitly")
+parser.add_argument(
+    "-o",
+    "--output",
+    default="output",
+    help="Folder for the output CSV (default: ./output)",
+)
+parser.add_argument(
+    "-d",
+    "--device",
+    help=(
+        "Use CPU or which GPU. (default: auto) "
+        "`auto` to automatically choose device, "
+        "`cpu` for pure CPU, "
+        "0, 1, 2, ... to specify which GPU device. "
+    ),
+    default="auto",
+)
 
 args = parser.parse_args()
+
+if args.model is None:
+    if not os.path.exists("Litton-7type-visual-landscape-model.pth"):
+        gdown.download(
+            id="1177rxfD7Yx5F5ZzEqDGBeAIYHTLU3lj9",
+            output="Litton-7type-visual-landscape-model.pth",
+        )
+    args.model = "Litton-7type-visual-landscape-model.pth"
+else:
+    if not os.path.exists(args.model):
+        print(
+            f"the model you have specifyed, {args.model}, do not exists",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    if not os.path.isfile(args.model):
+        print(
+            f"the model you have specifyed, {args.model}, is not a file.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+if args.device.lower() == "auto":
+    if platform.system() == "Darwin":
+        args.device = "mps" if torch.backends.mps.is_available() else "cpu"
+    else:
+        args.device = "cuda:0" if torch.cuda.is_available() else "cpu"
+elif args.device.lower() == "cpu":
+    args.device = "cpu"
+else:
+    if not args.device.isdigit():
+        print(
+            "--device must be one of 'cpu', 'auto', or an integer number.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    if platform.system() == "Darwin":
+        print(
+            "MacOS (MPS backend) do not support specify GPU by index", file=sys.stderr
+        )
+        sys.exit(1)
+
+    args.device = f"cuda:{args.device}"
+
+os.makedirs(args.output, exist_ok=True)
 
 
 labels = [
@@ -90,9 +155,20 @@ for i in range(len(labels)):
     labelsnum.append(str(i))
 img_type = [".jpg", ".bmp", ".png"]
 
-model = torch.load(args.model)
-model.eval()
-model.cuda()
+try:
+    model = torch.load(args.model).to(args.device).eval()
+except Exception as exc:
+    print(
+        (
+            f"Could not load model, `{args.model}`. Abort.\n"
+            f"For details, please check `.{os.sep}error.log`."
+        ),
+        file=sys.stderr,
+    )
+    with open("error.log", "w") as ferr:
+        traceback.print_exception(exc, file=ferr)
+    sys.exit(2)
+
 normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 preprocess = transforms.Compose(
     [
@@ -129,13 +205,13 @@ def main(imgpath):
                     continue
             name = os.path.join(imgpath, infile)
             img_pil = Image.open(name).convert("RGB")
-            img_tensor = preprocess(img_pil).cuda()
+            img_tensor = preprocess(img_pil).to(args.device)
             img_tensor = img_tensor.unsqueeze_(0)
             fc_out = model(Variable(img_tensor))
             fc_out = F.softmax(fc_out, dim=1)
             fc_out.tolist()
 
-        except:
+        except Exception as exc:
             print("error: " + name)
             error.append(name)
 
@@ -169,6 +245,8 @@ def main(imgpath):
         print("error: " + error_csv_path + " has been created!")
         error = []
 
+
+os.makedirs(args.output, exist_ok=True)
 
 folderpath_list = os.listdir(args.rootfolder)
 folderpath_list.sort()
