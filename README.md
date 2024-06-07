@@ -6,26 +6,24 @@
 
 
 ## 安裝
-### 安裝 PyTorch
-請至 PyTorch 官方網站的 [Get Started](https://pytorch.org/get-started/locally/) 選取需要的版本，並依照給出的命令列安裝。  
-例如：
+
+請使用 Conda 套件管理器安裝：
+
 ```console
-$ conda install pytorch torchvision torchaudio cudatoolkit=11.3 -c pytorch
+conda env create
 ```
 
-### 安裝所需套件
-```console
-$ pip install numpy==1.19.3 
-$ pip install pandas 
-$ pip install pillow 
+MacOS 的使用者請使用 `environment-mac.yml` 建立虛擬環境：
+```bash
+conda env create --file environment-mac.yml`
 ```
 
 ## 使用
-本程式是一個命令列腳本，使用以下指令進行批次分類：
+
+本程式是一個命令列腳本，使用以下指令進行批次預測及分類：
 ```console
-$ python prediction_Image(Litton-7type-visual-landscape-model).py ROOTFOLDER --model MODELWEIGHT --output OUTPUTFOLDER
+$ python prediction_Image(Litton-7type-visual-landscape-model).py ROOTFOLDER
 ```
-`MODELWEIGHT` 是一個指向模型權重 `.pth` 檔案的路徑。我們訓練好的模型權重檔案可從[這裡][trained weight]取得（SAH256 檢查碼： `384af7f997e31c82009a65338e5061a6217d2e0e4cf82855ac03fd9bf68f7650`），下載下來後將上面指令的 `MODELWEIGHT` 替換成檔案路徑。
 
 `ROOTFOLDER` 是影像檔案群的頂層資料夾。此資料夾底下只能放置要分析的一或多個子資料夾，不可包含檔案，而每個子資料夾包含影像檔案。例如以下檔案、資料夾結構的 `root` 資料夾：
 ```console
@@ -47,7 +45,6 @@ root
 │   ...
 ...
 ```
-`OUTPUTFOLDER` 是分類結果的輸出資料夾。每個子資料夾的分析結果會被獨立寫入一個檔案，並集中放置在此資料夾內。
 
 程式成功執行完成之後，原始的 `root` 資料夾內的所有影像會被移動至原所屬子資料夾下新建立的 Littion 分類子資料夾內，例如 `root/sbu1` 底下的資料會被異動為（`root/sub2`、`root/sub3` 等等所有子資料夾亦若是）：
 ```console
@@ -85,6 +82,9 @@ root
 ```
 `root` 底下的每個子資料夾均獨立被分析與移動資料。
 
+預設情況下，預測資料會被放在單前路徑底下的 `output` 資料夾內。
+我們可以使用 `--output` 選項指定其他路徑。
+
 輸出資料夾 `OUTPUTFOLDER` 底下的內容會是：
 ```console
 OUTPUTFOLDER
@@ -93,6 +93,7 @@ OUTPUTFOLDER
 ├── sub3-Litton-7type-visual-landscape-predict_result.csv
 ...
 ```
+
 每個檔案的內容架構均為以 `imgname`、`predict_label`、`predict_label_num`、`probability` 為欄位的表格檔案（`.csv`），例如：
 | imgname | predict_label | predict_label_num | probability
 |:-------:|---------------|-------------------|-------------
