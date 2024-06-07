@@ -1,0 +1,13 @@
+name: Litton7
+channels:
+  - nvidia
+  - pytorch
+dependencies:
+  - pytorch>=2.0.*
+  - torchvision
+  # change cuda version by your machine
+  - pytorch-cuda=11.8
+  - conda-forge::numpy==1.26.*
+  - conda-forge::pandas==2.2.*
+  - conda-forge::pillow
+  - conda-forge::gdown
