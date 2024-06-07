@@ -18,11 +18,22 @@ MacOS 的使用者請使用 `environment-mac.yml` 建立虛擬環境：
 conda env create --file environment-mac.yml`
 ```
 
+預設的虛擬環境名稱為「Litton7」。
+
 ## 使用
 
-本程式是一個命令列腳本，使用以下指令進行批次預測及分類：
+本程式是一個命令列腳本，使用以下指令進行批次預測及分類。
+
+首先，我們需要先進入虛擬環境：
+
 ```console
-$ python prediction_Image(Litton-7type-visual-landscape-model).py ROOTFOLDER
+conda activate Litton7
+```
+
+接著執行腳本：
+
+```console
+python prediction_Image(Litton-7type-visual-landscape-model).py ROOTFOLDER
 ```
 
 `ROOTFOLDER` 是影像檔案群的頂層資料夾。此資料夾底下只能放置要分析的一或多個子資料夾，不可包含檔案，而每個子資料夾包含影像檔案。例如以下檔案、資料夾結構的 `root` 資料夾：
@@ -82,10 +93,10 @@ root
 ```
 `root` 底下的每個子資料夾均獨立被分析與移動資料。
 
-預設情況下，預測資料會被放在單前路徑底下的 `output` 資料夾內。
+預設情況下，預測資料會被放在當前工作路徑底下的 `output` 資料夾內。
 我們可以使用 `--output` 選項指定其他路徑。
 
-輸出資料夾 `OUTPUTFOLDER` 底下的內容會是：
+輸出資料夾 `output` 底下的內容會是：
 ```console
 OUTPUTFOLDER
 ├── sub1-Litton-7type-visual-landscape-predict_result.csv

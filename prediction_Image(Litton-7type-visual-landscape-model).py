@@ -211,7 +211,7 @@ def main(imgpath):
             fc_out = F.softmax(fc_out, dim=1)
             fc_out.tolist()
 
-        except Exception as exc:
+        except:
             print("error: " + name)
             error.append(name)
 
