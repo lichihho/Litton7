@@ -8,7 +8,7 @@
 ## 安裝
 1. 請先下載完整檔案內容，並放置於本地端資料夾中。
 2. 安裝 Anaconda。
-3. 請使用 Conda 套件管理器安裝：
+3. 進入資料夾目錄中，使用 Conda 套件管理器安裝：
 
 ```console
 conda env create
