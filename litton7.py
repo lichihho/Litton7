@@ -1,21 +1,13 @@
+from datetime import datetime
+from pathlib import Path
+
 import argparse
-import os
-import shutil
 import sys
-import time
-import platform
-import traceback
-
-import pandas as pd
-import torch
-import torch.nn.functional as F
-import gdown
-
-from PIL import Image
-from torch.autograd import Variable
-from torchvision import transforms
 
 
+##########################################################################
+# Parse Arguments
+##########################################################################
 class PrintHelpBeforeLeaveArgumentParser(argparse.ArgumentParser):
     "An argument parser with helpful error message."
 
@@ -32,52 +24,24 @@ class PrintHelpBeforeLeaveArgumentParser(argparse.ArgumentParser):
         self.exit(2, ("%(prog)s: error: %(message)s\n") % args)
 
 
-desc = """\
-Categorize images and save the results to the specified output folder.
-Then, transfer the image files into new sub-folders named after
-Litton's 7 class categories.
-"""
-epilog = """\
-The program is a batch process.
-Given a folder with image files in its sub-folders:
-
-root-folder
-├── sub-folder1
-│   ├── 00001.jpg
-│   ├── 00002.jpg
-│   ├── 00003.jpg
-│   ...
-├── sub-folder2
-│   ├── 00004.jpg
-│   ├── 00005.jpg
-│   ├── 00006.jpg
-│   ...
-└── sub-folder3
-    ├── 00007.jpg
-    ├── 00008.jpg
-    ├── 00009.jpg
-    ...
-
-Set the path of the "root-folder" for this program, and it will process 
-the first level of sub-folders sequentially.
-
-Please ensure that the "root-folder" contains only sub-folders.
-"""
-
-
 parser = PrintHelpBeforeLeaveArgumentParser(
     formatter_class=argparse.RawDescriptionHelpFormatter,
-    description=desc,
-    epilog=epilog,
+    description="Classify images and save the results to a CSV file.",
 )
-parser.add_argument("rootfolder", help="Path to the directory to be processed")
-parser.add_argument("-m", "--model", help="Specify the model explicitly")
+parser.add_argument("target", type=Path, nargs="+", help="Path(s) to an image or a directory contains image(s).")
+parser.add_argument("-m", "--model", type=Path, help="Specify the model path explicitly")
 parser.add_argument(
     "-o",
     "--output",
-    default="output",
-    help="Folder for the output CSV (default: ./output)",
+    type=Path,
+    default=Path(datetime.now().strftime("litton7_%Y%m%d-%H%M%S.csv")),
+    help="Path for the output CSV (default: ./litton7_yyyymmdd-HHMMSS.csv)",
 )
+parser.add_argument(
+    "-b", "--batch-size", type=int, default=8,
+    help="inference number of images per iteration (default: 8)"
+)
+parser.add_argument("--no-recursive", action="store_true", help="Do not collect images under sub-directories")
 parser.add_argument(
     "-d",
     "--device",
@@ -89,24 +53,53 @@ parser.add_argument(
     ),
     default="auto",
 )
+parser.add_argument(
+    "--log",
+    help="Path to store log messages. If given 'stderr', log to stderr."
+)
 
 args = parser.parse_args()
 
+##########################################################################
+# Loading Libraries & Transform Arguments
+##########################################################################
+print("Loading libraries...")
+
+
+from PIL import Image
+from torchvision import transforms
+
+import csv
+import logging
+import os
+import platform
+import queue
+import threading
+import time
+import traceback
+
+import gdown
+import torch
+import torch.nn.functional as F
+
+
+args.batch_size = 1 if args.batch_size < 1 else args.batch_size
+
 if args.model is None:
-    if not os.path.exists("Litton-7type-visual-landscape-model.pth"):
+    if not Path("Litton-7type-visual-landscape-model.pth").exists():
         gdown.download(
             id="1177rxfD7Yx5F5ZzEqDGBeAIYHTLU3lj9",
             output="Litton-7type-visual-landscape-model.pth",
         )
-    args.model = "Litton-7type-visual-landscape-model.pth"
+    args.model = Path("Litton-7type-visual-landscape-model.pth")
 else:
-    if not os.path.exists(args.model):
+    if not args.model.exists():
         print(
             f"the model you have specifyed, {args.model}, do not exists",
             file=sys.stderr,
         )
         sys.exit(1)
-    if not os.path.isfile(args.model):
+    if not args.model.is_file():
         print(
             f"the model you have specifyed, {args.model}, is not a file.",
             file=sys.stderr,
@@ -136,38 +129,77 @@ else:
 
     args.device = f"cuda:{args.device}"
 
-os.makedirs(args.output, exist_ok=True)
+if args.log == "stderr":
+    logging.basicConfig(encoding="utf_8_sig", level=logging.WARNING)
+elif args.log:
+    logging.basicConfig(filename=args.log, encoding="utf_8_sig", level=logging.WARNING)
+else:
+    logging.disable()
+
+##########################################################################
+# Collection & Validation Image files
+##########################################################################
+print("Collecting images...")
+
+  
+def is_image(path: Path) -> Path | None:
+    try:
+        with Image.open(path) as f:
+            f.verify()
+    except Exception as exc:
+        logging.warning(f"skip entry '{path}' due to exception: {exc.__class__.__name__}")
+        return None
+    return path
 
 
-labels = [
-    "0.Panoramic-landscape",
-    "1.Feature-landscape",
-    "2.Detail-landscape",
-    "3.Enclosed-landscape",
-    "4.Focal-landscape",
-    "5.Ephemeral-landscape",
-    "6.Canopied-landscape",
-]
+def load_image_to_queue(paths: list[Path], out_queue: queue.Queue):
+    "Thread worker function to simply loading image files into queue"
+    for path in paths:
+        out_queue.put((path, Image.open(path)))
 
 
-labelsnum = []
-for i in range(len(labels)):
-    labelsnum.append(str(i))
-img_type = [".jpg", ".bmp", ".png"]
+image_files = []
+for path in args.target:
+    if path.is_file():
+        if is_image(path):
+            image_files.append(path)
+    if path.is_dir():
+        entries = path.iterdir() if args.no_recursive else path.glob("**/*")
+        for path in entries:
+            if not path.is_file():
+                continue
+            if is_image(path):
+                image_files.append(path)
+    else:
+        logging.warning(f"skip collecting from '{path}' because this is not a file nor a directory")
+        
+if not image_files:
+    print("No image founded, Abort.")
+    exit()
 
+print("Start a background thread to loading image...")
+# every items in `image_queue` will be `tuple(image_path: Path, image: PIL.Image.Image)`
+image_queue = queue.Queue(maxsize=args.batch_size * 3)
+threading.Thread(target=load_image_to_queue, args=(image_files, image_queue)).start()
+
+##########################################################################
+# Loading Model & Initialize Output File
+##########################################################################
+print("Loading model...")
 try:
-    model = torch.load(args.model, map_location=torch.device(args.device))
-    model = model.module.to(args.device).eval()
+    model: torch.nn.DataParallel = torch.load(args.model, map_location=torch.device(args.device))
+    model: torch.nn.Module = model.module.to(args.device).eval()
 except Exception as exc:
-    print(
-        (
-            f"Could not load model, `{args.model}`. Abort.\n"
-            f"For details, please check `.{os.sep}error.log`."
-        ),
-        file=sys.stderr,
+    msg = (
+        f"Could not load model, `{args.model}`, "
+        f"due to exception: {exc.__class__.__name__}. "
+        f"For details, please check `.{os.sep}litton7-traceback.log`."
     )
-    with open("error.log", "w") as ferr:
-        traceback.print_exception(exc, file=ferr)
+    logging.critical(msg)
+    if args.log != "%%stderr%%":
+        print(msg, file=sys.stderr)
+    with open("litton7-traceback.log", "w") as ftrace:
+        traceback.print_exception(exc, file=ftrace)
     sys.exit(2)
 
 normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
@@ -180,87 +212,99 @@ preprocess = transforms.Compose(
     ]
 )
 
-
-def main(imgpath):
-    imgname = []
-    imglabel = []
-    imglabelnum = []
-    rate = []
-    error = []
-
-    print("total " + str(len(os.listdir(imgpath))) + " images")
-    imagepath_list = os.listdir(imgpath)
-    imagepath_list.sort()
-    for infile in imagepath_list:
-        try:
-            for i in range(len(labels)):
-                if infile == labels[i]:
-                    continue
-                fpath = os.path.join(imgpath, labels[i])
-                if not os.path.isdir(fpath):
-                    os.mkdir(fpath)
-            for check in img_type:
-                if infile.find(check) == -1:
-                    continue
-            name = os.path.join(imgpath, infile)
-            img_pil = Image.open(name).convert("RGB")
-            img_tensor = preprocess(img_pil).to(args.device)
-            img_tensor = img_tensor.unsqueeze_(0)
-            with torch.no_grad():
-                fc_out = model(Variable(img_tensor))
-                fc_out = F.softmax(fc_out, dim=1)
-            fc_out.tolist()
-
-        except:
-            print("error: " + name)
-            error.append(name)
-
-        else:
-            transfer_list = []
-            for out in fc_out:
-                for x in range(len(labelsnum)):
-                    transfer_list.append(fc_out[0][x].item())
-            best_out = max(transfer_list)
-            i = transfer_list.index(best_out)
-            label = labels[i]
-            labelnum = labelsnum[i]
-            rate.append(best_out)
-            imgname.append(infile)
-            imglabel.append(label)
-            imglabelnum.append(labelnum)
-            newpath = os.path.join(imgpath, label, infile)
-            shutil.move(name, newpath)
-    dict = {
-        "imgname": imgname,
-        "predict_label": imglabel,
-        "predict_label_num": imglabelnum,
-        "probability": rate,
-    }
-    df = pd.DataFrame(dict)
-    df.to_csv(csv_path, encoding="utf_8_sig", index=False)
-    if error:
-        dict = {"error_imgname": error}
-        df = pd.DataFrame(dict)
-        df.to_csv(error_csv_path, encoding="utf_8_sig", index=False)
-        print("error: " + error_csv_path + " has been created!")
-        error = []
-
-
-os.makedirs(args.output, exist_ok=True)
-
-folderpath_list = os.listdir(args.rootfolder)
-folderpath_list.sort()
-for f in folderpath_list:
-    start = time.time()
-    imgpath = os.path.join(args.rootfolder, f)
-
-    csv_path = os.path.join(
-        args.output, f + "-Litton-7type-visual-landscape-predict_result.csv"
+try:
+    outfile = args.output.open("w", encoding="utf-8-sig", newline="")
+except Exception as exc:
+    msg = (
+        f"Could not create output file, `{args.output}`, "
+        f"due to exception: {exc.__class__.__name__}. Abort."
     )
-    error_csv_path = os.path.join(args.output, f + "-predict_error.csv")
-    print(csv_path)
-    main(imgpath)
-    end = time.time()
-    print("Costing " + str(end - start) + " sec")
-    print("---------------------------------------------------------------------")
-print("done")
+    logging.error(msg)
+    if args.log != "%%stderr%%":
+        print(msg, file=sys.stderr)
+    sys.exit(3)
+
+writer = csv.DictWriter(
+    outfile,
+    fieldnames=["imgname", "predict_label", "predict_label_num", "probability"],
+)
+writer.writeheader()
+
+##########################################################################
+# Classify & Write Results to Output File
+##########################################################################
+LABELS = [
+    "0.Panoramic-landscape",
+    "1.Feature-landscape",
+    "2.Detail-landscape",
+    "3.Enclosed-landscape",
+    "4.Focal-landscape",
+    "5.Ephemeral-landscape",
+    "6.Canopied-landscape",
+]
+
+# show progress
+start_time = time.time()
+current_for_print = " " * (len(str(len(image_files))) - 1) + "0"
+print(f" {current_for_print} / {len(image_files)} (  0.00%)", end="", flush=True)
+
+current_done = 0
+while current_done < len(image_files):
+    image_paths = []
+    features: list[torch.Tensor] = []
+    if (len(image_files) - current_done) < args.batch_size:
+        bsize = len(image_files) - current_done
+    else:
+        bsize = args.batch_size
+    for _ in range(bsize):
+        imgpath, imgobj = image_queue.get()
+        image_paths.append(imgpath)
+        features.append(preprocess(imgobj.convert("RGB")))
+    feature = torch.stack(features)  # shape: (batch_size, 3, 224, 224)
+
+    feature = feature.to(args.device)
+    with torch.no_grad():
+        logits = model(feature)
+        probs = F.softmax(logits[:, :7], dim=1)  # shape: (batch_size, 7)
+
+    probs = probs.to("cpu")
+    for i in range(probs.shape[0]):
+        i_best_match = probs[i].argmax().item()
+        writer.writerow(
+            {
+                "imgname": image_paths[i],
+                "predict_label": LABELS[i_best_match],
+                "predict_label_num": i_best_match,
+                "probability": probs[i, i_best_match].item(),
+            }
+        )
+
+    current_done += bsize
+
+    # show progress
+    elapsed_seconds = time.time() - start_time
+    ratio = current_done / len(image_files)
+    secs_per_image = elapsed_seconds / current_done
+    eta_total_secs = secs_per_image * (len(image_files) - current_done)
+    eta_hours = int(eta_total_secs // (60 * 60))
+    eta_mins = int(eta_total_secs % (60 * 60) // 60)
+    eta_seconds = int(eta_total_secs % 60)
+    current_for_print = (
+        " " * (len(str(len(image_files))) - len(str(current_done))) + str(current_done)
+    )
+    if secs_per_image > 1:
+        freq = secs_per_image
+        freq_unit = "s/img"
+    else:
+        freq = 1 / secs_per_image
+        freq_unit = "img/s"
+    print(
+        f"\r {current_for_print} / {len(image_files)} "
+        f"({ratio * 100:6.2f}%) "
+        f"| {freq:.2f} {freq_unit} ETA "
+        f"{eta_hours}:{eta_mins:02}:{eta_seconds:02}",
+        end="",
+        flush=True,
+    )
+
+outfile.close()
