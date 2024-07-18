@@ -6,18 +6,26 @@
 
 
 ## 安裝
+
 1. 請先下載完整檔案內容，並放置於本地端資料夾中。
 2. 安裝 Anaconda。
-3. 進入資料夾目錄中，使用 Conda 套件管理器安裝：
+3. 進入資料夾目錄中，使用 Conda 套件管理器安裝
 
+Windows 作業系統的使用者使用以下指令安裝：
 ```console
 conda env create
 ```
 
 MacOS 的使用者請使用 `environment-mac.yml` 建立虛擬環境：
-```bash
-conda env create --file environment-mac.yml`
+```zsh
+conda env create --file environment-mac.yml
 ```
+
+若沒有 GPU 裝置，無論任何作業系統，都可用 `environment-cpu.yml` 安裝純 CPU 運算版本：
+```console
+conda env create --file environment-cpu.yml
+```
+CPU 版本的運算速度在處理大資料量時較 GPU 版本慢上許多。若須分析大量資料，建議使用 GPU 版。
 
 預設的虛擬環境名稱為「Litton7」。
 
@@ -41,14 +49,14 @@ python prediction_Image(Litton-7type-visual-landscape-model).py ROOTFOLDER
 ```console
 root
 ├── sub1
-│   ├── 00001.jpg
-│   ├── 00002.jpg
-│   ├── 00003.jpg
+│   ├── 00001.jpg
+│   ├── 00002.jpg
+│   ├── 00003.jpg
 │   ...
 ├── sub2
-│   ├── 00004.jpg
-│   ├── 00005.jpg
-│   ├── 00006.jpg
+│   ├── 00004.jpg
+│   ├── 00005.jpg
+│   ├── 00006.jpg
 │   ...
 ├── sub3
 │   ├── 00007.jpg

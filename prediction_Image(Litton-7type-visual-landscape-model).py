@@ -43,14 +43,14 @@ Given a folder with image files in its sub-folders:
 
 root-folder
 ├── sub-folder1
-│   ├── 00001.jpg
-│   ├── 00002.jpg
-│   ├── 00003.jpg
+│   ├── 00001.jpg
+│   ├── 00002.jpg
+│   ├── 00003.jpg
 │   ...
 ├── sub-folder2
-│   ├── 00004.jpg
-│   ├── 00005.jpg
-│   ├── 00006.jpg
+│   ├── 00004.jpg
+│   ├── 00005.jpg
+│   ├── 00006.jpg
 │   ...
 └── sub-folder3
     ├── 00007.jpg
@@ -156,7 +156,8 @@ for i in range(len(labels)):
 img_type = [".jpg", ".bmp", ".png"]
 
 try:
-    model = torch.load(args.model).to(args.device).eval()
+    model = torch.load(args.model, map_location=torch.device(args.device))
+    model = model.module.to(args.device).eval()
 except Exception as exc:
     print(
         (
@@ -186,8 +187,6 @@ def main(imgpath):
     imglabelnum = []
     rate = []
     error = []
-    bset_out = number = checknumber = i = 0
-    check = num = point = 0
 
     print("total " + str(len(os.listdir(imgpath))) + " images")
     imagepath_list = os.listdir(imgpath)
@@ -207,8 +206,9 @@ def main(imgpath):
             img_pil = Image.open(name).convert("RGB")
             img_tensor = preprocess(img_pil).to(args.device)
             img_tensor = img_tensor.unsqueeze_(0)
-            fc_out = model(Variable(img_tensor))
-            fc_out = F.softmax(fc_out, dim=1)
+            with torch.no_grad():
+                fc_out = model(Variable(img_tensor))
+                fc_out = F.softmax(fc_out, dim=1)
             fc_out.tolist()
 
         except:

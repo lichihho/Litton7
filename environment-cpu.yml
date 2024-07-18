@@ -1,13 +1,10 @@
 name: Litton7
 channels:
-  - nvidia
   - pytorch
 dependencies:
   - pytorch>=2.0.*
   - torchvision
-  # change pytorch-cuda's version to equal or lower than your CUDA version
-  # available choices: 11.8, 12.1
-  - pytorch-cuda=11.8
+  - cpuonly
   - conda-forge::numpy==1.26.*
   - conda-forge::pandas==2.2.*
   - conda-forge::pillow
