@@ -2,7 +2,5 @@ name: Litton7
 dependencies:
   - pytorch::pytorch>=2.0.*
   - pytorch::torchvision
-  - conda-forge::numpy==1.26.*
-  - conda-forge::pandas==2.2.*
   - conda-forge::pillow
   - conda-forge::gdown
