@@ -1,6 +1,9 @@
 name: Litton7
+channels:
+  - pytorch
 dependencies:
-  - pytorch::pytorch>=2.0.*
-  - pytorch::torchvision
+  - pytorch>=2.0.*
+  - torchvision
+  - cpuonly
   - conda-forge::pillow
   - conda-forge::gdown
