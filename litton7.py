@@ -196,7 +196,7 @@ except Exception as exc:
         f"For details, please check `.{os.sep}litton7-traceback.log`."
     )
     logging.critical(msg)
-    if args.log != "%%stderr%%":
+    if args.log != "stderr":
         print(msg, file=sys.stderr)
     with open("litton7-traceback.log", "w") as ftrace:
         traceback.print_exception(exc, file=ftrace)
@@ -220,7 +220,7 @@ except Exception as exc:
         f"due to exception: {exc.__class__.__name__}. Abort."
     )
     logging.error(msg)
-    if args.log != "%%stderr%%":
+    if args.log != "stderr":
         print(msg, file=sys.stderr)
     sys.exit(3)
 
