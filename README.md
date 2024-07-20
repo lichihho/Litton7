@@ -42,7 +42,7 @@ conda activate Litton7
 接著執行腳本：
 
 ```console
-python litton7.py IMAGE
+python litton7.py "IMAGE-PATH"
 ```
 
 `IMAGE` 是影像檔案來源，可為資料夾或影像路徑。 可以指定一到多個。 
