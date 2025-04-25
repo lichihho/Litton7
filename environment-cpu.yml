@@ -6,4 +6,4 @@ dependencies:
   - torchvision
   - cpuonly
   - conda-forge::pillow
-  - conda-forge::gdown
+  - conda-forge::tqdm

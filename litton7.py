@@ -28,8 +28,15 @@ parser = PrintHelpBeforeLeaveArgumentParser(
     formatter_class=argparse.RawDescriptionHelpFormatter,
     description="Classify images and save the results to a CSV file.",
 )
-parser.add_argument("target", type=Path, nargs="+", help="Path(s) to an image or a directory contains image(s).")
-parser.add_argument("-m", "--model", type=Path, help="Specify the model path explicitly")
+parser.add_argument(
+    "target",
+    type=Path,
+    nargs="+",
+    help="Path(s) to an image or a directory contains image(s).",
+)
+parser.add_argument(
+    "-m", "--model", type=Path, help="Specify the model path explicitly"
+)
 parser.add_argument(
     "-o",
     "--output",
@@ -38,10 +45,17 @@ parser.add_argument(
     help="Path for the output CSV (default: ./litton7_yyyymmdd-HHMMSS.csv)",
 )
 parser.add_argument(
-    "-b", "--batch-size", type=int, default=8,
-    help="inference number of images per iteration (default: 8)"
+    "-b",
+    "--batch-size",
+    type=int,
+    default=8,
+    help="inference number of images per iteration (default: 8)",
 )
-parser.add_argument("--no-recursive", action="store_true", help="Do not collect images under sub-directories")
+parser.add_argument(
+    "--no-recursive",
+    action="store_true",
+    help="Do not collect images under sub-directories",
+)
 parser.add_argument(
     "-d",
     "--device",
@@ -54,8 +68,7 @@ parser.add_argument(
     default="auto",
 )
 parser.add_argument(
-    "--log",
-    help="Path to store log messages. If given 'stderr', log to stderr."
+    "--log", help="Path to store log messages. If given 'stderr', log to stderr."
 )
 
 args = parser.parse_args()
@@ -78,20 +91,33 @@ import threading
 import time
 import traceback
 
-import gdown
 import torch
 import torch.nn.functional as F
+
+from urllib.request import urlopen
+from tqdm import tqdm
 
 
 args.batch_size = 1 if args.batch_size < 1 else args.batch_size
 
 if args.model is None:
-    if not Path("Litton-7type-visual-landscape-model.pth").exists():
-        gdown.download(
-            id="1177rxfD7Yx5F5ZzEqDGBeAIYHTLU3lj9",
-            output="Litton-7type-visual-landscape-model.pth",
-        )
-    args.model = Path("Litton-7type-visual-landscape-model.pth")
+    model_filename = "Litton-7type-visual-landscape-model.pth"
+    model_url = f"https://lclab.thu.edu.tw/modelzoo/{model_filename}"
+    if not Path(model_filename).exists():
+        with urlopen(model_url) as resp, open(model_filename, "wb") as fmodel:
+            model_size = int(resp.getheader("Content-Length", 0))
+            progress = tqdm(
+                unit="B",
+                unit_scale=True,
+                unit_divisor=1024,
+                total=model_size,
+                desc="Download Model",
+            )
+            with open(model_filename, "wb") as fmodel:
+                while chunk := resp.read(4096):
+                    fmodel.write(chunk)
+                    progress.update(len(chunk))
+    args.model = Path(model_filename)
 else:
     if not args.model.exists():
         print(
@@ -141,13 +167,15 @@ else:
 ##########################################################################
 print("Collecting images...")
 
-  
+
 def is_image(path: Path) -> Path | None:
     try:
         with Image.open(path) as f:
             f.verify()
     except Exception as exc:
-        logging.warning(f"skip entry '{path}' due to exception: {exc.__class__.__name__}")
+        logging.warning(
+            f"skip entry '{path}' due to exception: {exc.__class__.__name__}"
+        )
         return None
     return path
 
@@ -171,8 +199,10 @@ for path in args.target:
             if is_image(path):
                 image_files.append(path)
     else:
-        logging.warning(f"skip collecting from '{path}' because this is not a file nor a directory")
-        
+        logging.warning(
+            f"skip collecting from '{path}' because this is not a file nor a directory"
+        )
+
 if not image_files:
     print("No image founded, Abort.")
     exit()
@@ -187,7 +217,9 @@ threading.Thread(target=load_image_to_queue, args=(image_files, image_queue)).st
 ##########################################################################
 print("Loading model...")
 try:
-    model: torch.nn.DataParallel = torch.load(args.model, map_location=torch.device(args.device))
+    model: torch.nn.DataParallel = torch.load(
+        args.model, map_location=torch.device(args.device)
+    )
     model: torch.nn.Module = model.module.to(args.device).eval()
 except Exception as exc:
     msg = (
@@ -289,9 +321,9 @@ while current_done < len(image_files):
     eta_hours = int(eta_total_secs // (60 * 60))
     eta_mins = int(eta_total_secs % (60 * 60) // 60)
     eta_seconds = int(eta_total_secs % 60)
-    current_for_print = (
-        " " * (len(str(len(image_files))) - len(str(current_done))) + str(current_done)
-    )
+    current_for_print = " " * (
+        len(str(len(image_files))) - len(str(current_done))
+    ) + str(current_done)
     if secs_per_image > 1:
         freq = secs_per_image
         freq_unit = "s/img"
@@ -308,3 +340,4 @@ while current_done < len(image_files):
     )
 
 outfile.close()
+
